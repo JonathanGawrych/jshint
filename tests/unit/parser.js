@@ -4117,7 +4117,7 @@ exports["/*jshint ignore */ should allow the linter to skip blocked-out lines to
   var code = fs.readFileSync(__dirname + "/fixtures/gh826.js", "utf8");
 
   TestRun(test)
-    .addError(33, "Use '===' to compare with '0'.")
+    .addError(33, "Mixed spaces and tabs.")
     .test(code);
 
   test.done();
