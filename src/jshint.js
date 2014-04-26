@@ -2507,6 +2507,7 @@ var JSHINT = (function () {
     }
 
     that.left = left;
+    that.p = p;
     return that;
   }, 155, true).exps = true;
 
@@ -3006,6 +3007,7 @@ var JSHINT = (function () {
         warning("W084");
       }
     }
+    return expr;
   }
 
 
@@ -3578,10 +3580,10 @@ var JSHINT = (function () {
     increaseComplexityCount();
     state.condition = true;
     advance("(");
-    checkCondAssignment(expression(0));
+    this.p = checkCondAssignment(expression(0));
     advance(")", t);
     state.condition = false;
-    block(true, true);
+    this.b = block(true, true);
     if (state.tokens.next.id === "else") {
       advance("else");
       if (state.tokens.next.id === "if" || state.tokens.next.id === "switch") {
@@ -3898,13 +3900,82 @@ var JSHINT = (function () {
         }
         advance();
       }
+      var item = state.tokens.curr;
       advance(nextop.value);
       expression(20);
+      var collection = state.tokens.curr;
       advance(")", t);
       s = block(true, true);
-      if (state.option.forin && s && (s.length > 1 || typeof s[0] !== "object" ||
-          s[0].value !== "if")) {
-        warning("W089", this);
+      if (state.option.forin && s) {
+        // the first statement must be an if statement
+        if (typeof s[0] !== "object" || s[0].value !== "if") {
+          warning("W089", this);
+        }
+
+        // the if statement must check collection.hasOwnProperty(item)
+        else {
+
+          // Use a recursive descent parser to navigate though this block and return the conditional
+          var conditional = (function rdp(part) {
+
+            if (isString(part))
+              return part;
+
+            var text = "";
+
+            if (part.left) {
+              text += rdp(part.left);
+            }
+
+            text += part.value;
+
+            if (part.p) {
+              if (part.p instanceof Array) {
+                text += part.p.map(rdp).join(",");
+              } else {
+                text += rdp(part.p);
+              }
+            }
+
+            if (part.value === "(") {
+              text += ")";
+            }
+
+            if (part.right) {
+              text += rdp(part.right);
+            }
+
+            return text;
+
+          })(s[0].p);
+
+          var check = collection.value + ".hasOwnProperty(" + item.value + ")";
+
+          // if "collection.hasOwnProperty(item)" does not exist, warn
+          if (conditional.indexOf(check) === -1) {
+            warning("W089", this);
+
+          // otherwise do basic checks to determine if hasOwnProperty was logically inversed
+          } else {
+            var left = conditional.substring(0, conditional.indexOf(check));
+            var right = conditional.substring(conditional.indexOf(check) + check.length + 1);
+            var inversed = /!$/.test(left) ^ /===?false/.test(right);
+            var hasExitingControl = inversed && s[0].b && !s[0].b.every(function(item) {
+              if (item) {
+                return item.value !== "continue" &&
+                       item.value !== "break" &&
+                       item.value !== "return";
+              }
+              return true;
+            });
+
+            // if it wasn't inversed, and that's not the only expression in the if statement
+            // or if it was inversed, and there isn't a control statement in that block
+            if ((!inversed && (s.length !== 1)) || (inversed && !hasExitingControl)) {
+              warning("W089", this);
+            }
+          }
+        }
       }
       funct["(breakage)"] -= 1;
       funct["(loopage)"] -= 1;
