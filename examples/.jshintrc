@@ -76,6 +76,7 @@
     "yui"           : false,    // Yahoo User Interface
 
     // Legacy
+    "onevar"        : false,    // true: Allow only one `var` statement per function
     "passfail"      : false,    // true: Stop on first error
     "white"         : false,    // true: Check against strict whitespace and indentation rules
 
